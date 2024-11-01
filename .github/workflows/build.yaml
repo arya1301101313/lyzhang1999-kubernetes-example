@@ -3,52 +3,45 @@ name: build
 on:
   push:
     branches:
-      - "main"
+      - 'main'
 
 env:
-  DOCKERHUB_USERNAME: lyzhang1999
+  DOCKERHUB_USERNAME: jianyahuang
 
 jobs:
   docker:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v3
-      - name: Set outputs
+      - name: Checkout   ### 负责将代码检出到运行环境
+        # uses 字段代表使用 GitHub Action 的某个插件
+        # 例如 actions/checkout@v3 插件会帮助我们检出代码。
+        uses: actions/checkout@v3  
+      - name: Set outputs  ### 会输出 sha_short 环境变量，值为 short commit id，这可以方便在后续阶段引用。
         id: vars
         run: echo "::set-output name=sha_short::$(git rev-parse --short HEAD)"
-      - name: Set up QEMU
+      - name: Set up QEMU  ### 负责初始化 Docker 构建工具链 1 ，
+        # QEMU 是一个通用的开源机器模拟器和虚拟器。
+        # 可能的用途包括在 CI/CD 环境中模拟不同的硬件架构以进行测试、跨平台构建和验证等。
         uses: docker/setup-qemu-action@v2
-      - name: Set up Docker Buildx
+      - name: Set up Docker Buildx   ### 负责初始化 Docker 构建工具链 2
+        # Buildx 是 Docker 的一个扩展工具，它允许进行更高级的构建操作，
+        # 比如构建多架构的 Docker 镜像、使用 BuildKit 进行高效构建等。
         uses: docker/setup-buildx-action@v2
-      - name: Login to Docker Hub
+      - name: Login to Docker Hub  ### 通过 docker login 来登录到 Docker Hub，以便获得推送镜像的权限。
         uses: docker/login-action@v2
+        # with 字段是向插件传递参数的
         with:
           username: ${{ env.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
-      - name: Build backend and push
+      - name: Build backend and push  ### 负责构建前后端镜像
         uses: docker/build-push-action@v3
         with:
           context: backend
           push: true
-          platforms: linux/amd64,linux/arm64
           tags: ${{ env.DOCKERHUB_USERNAME }}/backend:${{ steps.vars.outputs.sha_short }}
-      - name: Build frontend and push
+      - name: Build frontend and push  ### 将镜像推送到 Docker Hub
         uses: docker/build-push-action@v3
         with:
           context: frontend
           push: true
-          platforms: linux/amd64,linux/arm64
           tags: ${{ env.DOCKERHUB_USERNAME }}/frontend:${{ steps.vars.outputs.sha_short }}
-      # - name: Update helm values.yaml
-      #   uses: fjogeleit/yaml-update-action@main
-      #   with:
-      #     valueFile: 'helm/values.yaml'
-      #     commitChange: true
-      #     branch: main
-      #     message: 'Update Image Version to ${{ steps.vars.outputs.sha_short }}'
-      #     changes: |
-      #       {
-      #         "backend.tag": "${{ steps.vars.outputs.sha_short }}",
-      #         "frontend.tag": "${{ steps.vars.outputs.sha_short }}"
-      #       }
